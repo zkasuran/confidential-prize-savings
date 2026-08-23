@@ -2,7 +2,7 @@
 
 A private, no-loss prize-savings pool (a confidential [PoolTogether](https://pooltogether.com))
 built on the [Zama Protocol](https://www.zama.org) with FHEVM. Depositors save together, one of
-them wins the accrued prize each round, and nobody ever loses principal. Every deposit, every
+them wins the accrued prize each round and nobody ever loses principal. Every deposit, every
 balance, the prize amount and even the winner all stay encrypted end-to-end.
 
 Built for the Zama Developer Program (Mainnet Season 4, Bounty Track).
@@ -28,8 +28,8 @@ the prize is and who won. This one leaks almost nothing.
   `FHE.select`, with no on-chain signal of who it was. You find out you won by decrypting your own
   balance and seeing it grow.
 
-The only value ever revealed is the **aggregate pool total**, and only at draw time. That is the
-same TVL number any savings pool shows publicly, and it is needed so a fair, deposit-weighted
+The only value ever revealed is the **aggregate pool total**, exposed only at draw time. That is
+the same TVL number any savings pool shows publicly. It is needed so a fair deposit-weighted
 winning ticket can be drawn. Individual positions stay secret.
 
 ## How the draw works
@@ -54,7 +54,7 @@ Principal is always redeemable. `withdraw` clamps the request to your balance un
 (`select(le(request, balance), request, 0)`), so an over-withdrawal simply moves nothing. Winning
 adds to your balance and never subtracts from anyone. Sponsors fund the prize pot, which models the
 yield that funds prizes in the original PoolTogether. On this testnet the yield is sponsor-supplied
-rather than routed through a lending market, and that is stated plainly rather than faked.
+rather than routed through a lending market. That is stated plainly rather than faked.
 
 ## Architecture
 
@@ -96,7 +96,7 @@ npm run dev                 # http://localhost:5173
 AI assistance (Claude, Anthropic) was used to develop this project. The design, review and
 verification were done by the author. Verified before publishing: the Hardhat suite (7 tests on the
 FHEVM mock), solhint + eslint + prettier with zero warnings, a TypeScript typecheck, a production
-frontend build, and a live end-to-end run on Sepolia (encrypted deposit then user-decrypt of the
+frontend build and a live end-to-end run on Sepolia (encrypted deposit then user-decrypt of the
 resulting balance) against the real Zama coprocessor and relayer.
 
 ## License

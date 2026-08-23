@@ -28,3 +28,7 @@ ref-dapps/
 
 # Built site deploy dir (separate public repo)
 site-deploy/
+
+# Internal prep (not part of the public deliverable)
+SUBMIT-PACKET.md
+content/
