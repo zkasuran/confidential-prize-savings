@@ -5,6 +5,9 @@ import { getFhevmInstance, type FhevmInstance } from "./fhevm";
 import { toHex, userDecryptEuint } from "./decrypt";
 import { POOL_ABI, TOKEN_ABI } from "./abi";
 import { CHAIN_ID, CHAIN_ID_HEX, POOL_ADDRESS, TOKEN_ADDRESS, formatUnits, parseUnits } from "./config";
+import ParticleBackground from "./components/ParticleBackground";
+import HowItWorks from "./components/HowItWorks";
+import ToastContainer, { showToast } from "./components/Toast";
 
 type InjectedProvider = Eip1193Provider & {
   on?: (event: string, cb: (...args: unknown[]) => void) => void;
@@ -33,6 +36,7 @@ export default function App() {
   const [depositAmt, setDepositAmt] = useState("50");
   const [withdrawAmt, setWithdrawAmt] = useState("10");
   const [sponsorAmt, setSponsorAmt] = useState("25");
+  const [activeTab, setActiveTab] = useState<"deposit" | "withdraw" | "sponsor">("deposit");
 
   const configured = Boolean(TOKEN_ADDRESS && POOL_ADDRESS);
   const onSepolia = chainId === CHAIN_ID;
@@ -44,7 +48,7 @@ export default function App() {
 
   const connect = useCallback(async () => {
     if (!window.ethereum) {
-      log("No wallet found. Install MetaMask.");
+      showToast("No wallet found. Install MetaMask.", "error");
       return;
     }
     const provider = new BrowserProvider(window.ethereum);
@@ -54,6 +58,7 @@ export default function App() {
     setSigner(s);
     setAccount(await s.getAddress());
     setChainId(Number(net.chainId));
+    showToast("Wallet connected successfully!", "success");
     log(`Connected ${await s.getAddress()} on chain ${net.chainId}`);
   }, [log]);
 
@@ -62,9 +67,9 @@ export default function App() {
     try {
       await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: CHAIN_ID_HEX }] });
     } catch (e) {
-      log(`Switch network failed: ${(e as Error).message}`);
+      showToast(`Switch network failed: ${(e as Error).message}`, "error");
     }
-  }, [log]);
+  }, []);
 
   useEffect(() => {
     const eth = window.ethereum;
@@ -89,12 +94,16 @@ export default function App() {
   const run = useCallback(
     async (label: string, fn: () => Promise<void>) => {
       setBusy(true);
+      showToast(`${label}…`, "loading");
       try {
         log(`${label}…`);
         await fn();
         log(`${label} ✓`);
+        showToast(`${label} completed!`, "success");
       } catch (e) {
-        log(`${label} ✗ ${(e as Error).message.slice(0, 160)}`);
+        const msg = (e as Error).message.slice(0, 120);
+        log(`${label} ✗ ${msg}`);
+        showToast(`${label} failed`, "error");
       } finally {
         setBusy(false);
       }
@@ -134,14 +143,14 @@ export default function App() {
     });
 
   const doApprove = () =>
-    run("Approve pool as operator", async () => {
+    run("Approve pool operator", async () => {
       const { token } = contracts();
       const until = Math.floor(Date.now() / 1000) + 365 * 24 * 3600;
       await (await token.setOperator(POOL_ADDRESS, until)).wait();
     });
 
   const doDeposit = () =>
-    run("Deposit (encrypted)", async () => {
+    run("Encrypted deposit", async () => {
       const { pool } = contracts();
       const { handle, proof } = await encrypt(POOL_ADDRESS, parseUnits(depositAmt));
       await (await pool.deposit(handle, proof)).wait();
@@ -149,7 +158,7 @@ export default function App() {
     });
 
   const doWithdraw = () =>
-    run("Withdraw (encrypted)", async () => {
+    run("Encrypted withdrawal", async () => {
       const { pool } = contracts();
       const { handle, proof } = await encrypt(POOL_ADDRESS, parseUnits(withdrawAmt));
       await (await pool.withdraw(handle, proof)).wait();
@@ -157,7 +166,7 @@ export default function App() {
     });
 
   const doSponsor = () =>
-    run("Sponsor prize (encrypted)", async () => {
+    run("Sponsor prize", async () => {
       const { pool } = contracts();
       const { handle, proof } = await encrypt(POOL_ADDRESS, parseUnits(sponsorAmt));
       await (await pool.sponsorPrize(handle, proof)).wait();
@@ -165,11 +174,11 @@ export default function App() {
     });
 
   const revealPool = () =>
-    run("Reveal my pool balance", async () => {
+    run("Decrypt pool balance", async () => {
       const { pool } = contracts();
       const handle: string = await pool.confidentialBalanceOf(account);
       if (handle === ZeroHash) {
-        setPoolBalance("0");
+        setPoolBalance("0.00");
         return;
       }
       const instance = await getFhevmInstance(window.ethereum as Eip1193Provider);
@@ -177,11 +186,11 @@ export default function App() {
     });
 
   const revealWallet = () =>
-    run("Reveal my wallet cUSD", async () => {
+    run("Decrypt wallet balance", async () => {
       const { token } = contracts();
       const handle: string = await token.confidentialBalanceOf(account);
       if (handle === ZeroHash) {
-        setWalletBalance("0");
+        setWalletBalance("0.00");
         return;
       }
       const instance = await getFhevmInstance(window.ethereum as Eip1193Provider);
@@ -189,14 +198,14 @@ export default function App() {
     });
 
   const doStartDraw = () =>
-    run("Start draw (expose pool total)", async () => {
+    run("Start draw", async () => {
       const { pool } = contracts();
       await (await pool.startDraw()).wait();
       await refresh();
     });
 
   const doFinalizeDraw = () =>
-    run("Finalize draw (award hidden winner)", async () => {
+    run("Finalize draw", async () => {
       const { pool } = contracts();
       const instance = await getFhevmInstance(window.ethereum as Eip1193Provider);
       const handle: string = await pool.totalDepositedHandle();
@@ -208,172 +217,330 @@ export default function App() {
   const disabled = busy || !onSepolia || !configured || !account;
 
   return (
-    <div className="app">
-      <header className="hero">
-        <div className="hero-badge">Zama FHEVM · Sepolia</div>
-        <h1>Confidential Prize Savings</h1>
-        <p className="tag">
-          A no-loss lottery where deposits, balances and winnings stay encrypted end-to-end. Save
-          together, one depositor wins the prize each round, nobody loses principal, and the winner
-          stays hidden.
-        </p>
-        <div className="wallet">
-          {account ? (
-            <span className="pill ok">
-              {account.slice(0, 6)}…{account.slice(-4)}
-            </span>
-          ) : (
-            <button className="btn primary" onClick={connect}>
-              Connect wallet
-            </button>
-          )}
-          {account && !onSepolia && (
-            <button className="btn warn" onClick={switchToSepolia}>
-              Switch to Sepolia
-            </button>
-          )}
-          {account && onSepolia && <span className="pill ok">Sepolia ✓</span>}
-        </div>
-      </header>
-
-      {!configured && (
-        <div className="notice">
-          Frontend is not yet pointed at deployed contracts. Set <code>VITE_TOKEN_ADDRESS</code> and{" "}
-          <code>VITE_POOL_ADDRESS</code>, then rebuild.
-        </div>
-      )}
-
-      <main className="grid">
-        <section className="card">
-          <h2>1 · Get test cUSD</h2>
-          <p className="hint">Mint yourself confidential test tokens from the faucet.</p>
-          <div className="row">
-            <input value={mintAmt} onChange={(e) => setMintAmt(e.target.value)} inputMode="decimal" />
-            <button className="btn" disabled={disabled} onClick={doMint}>
-              Mint
-            </button>
+    <>
+      <ParticleBackground />
+      <ToastContainer />
+      
+      <div className="app">
+        {/* Navigation */}
+        <nav className="navbar">
+          <div className="nav-brand">
+            <span className="nav-logo">🔐</span>
+            <span className="nav-title">Confidential Prize Savings</span>
           </div>
-          <div className="balance">
-            <span>Wallet cUSD</span>
-            <strong>{walletBalance}</strong>
-            <button className="link" disabled={disabled} onClick={revealWallet}>
-              reveal
-            </button>
+          <div className="nav-actions">
+            {account ? (
+              <div className="nav-wallet">
+                <span className="network-dot" />
+                <span className="nav-address">
+                  {account.slice(0, 6)}…{account.slice(-4)}
+                </span>
+                {!onSepolia && (
+                  <button className="btn btn-sm btn-warning" onClick={switchToSepolia}>
+                    Switch to Sepolia
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button className="btn btn-primary btn-glow" onClick={connect}>
+                <span className="btn-icon">◆</span>
+                Connect Wallet
+              </button>
+            )}
           </div>
-        </section>
+        </nav>
 
-        <section className="card">
-          <h2>2 · Approve the pool</h2>
-          <p className="hint">One-time ERC-7984 operator approval so the pool can pull your encrypted deposit.</p>
-          <button className="btn" disabled={disabled} onClick={doApprove}>
-            Approve operator
-          </button>
-        </section>
-
-        <section className="card">
-          <h2>3 · Deposit</h2>
-          <p className="hint">Your amount is encrypted in the browser before it ever touches the chain.</p>
-          <div className="row">
-            <input value={depositAmt} onChange={(e) => setDepositAmt(e.target.value)} inputMode="decimal" />
-            <button className="btn primary" disabled={disabled} onClick={doDeposit}>
-              Deposit
-            </button>
+        {/* Hero Section */}
+        <header className="hero">
+          <div className="hero-badge-row">
+            <span className="badge badge-protocol">Zama FHEVM</span>
+            <span className="badge badge-network">Sepolia Testnet</span>
+            <span className="badge badge-status">● Live</span>
           </div>
-        </section>
-
-        <section className="card highlight">
-          <h2>Your position</h2>
-          <p className="hint">Only you can decrypt this. It is a ciphertext to everyone else.</p>
-          <div className="big">{poolBalance}</div>
-          <button className="btn" disabled={disabled} onClick={revealPool}>
-            Reveal my balance
-          </button>
-        </section>
-
-        <section className="card">
-          <h2>Withdraw</h2>
-          <p className="hint">No-loss: principal is always redeemable. Over-withdrawing simply does nothing.</p>
-          <div className="row">
-            <input value={withdrawAmt} onChange={(e) => setWithdrawAmt(e.target.value)} inputMode="decimal" />
-            <button className="btn" disabled={disabled} onClick={doWithdraw}>
-              Withdraw
-            </button>
-          </div>
-        </section>
-
-        <section className="card">
-          <h2>Sponsor the prize</h2>
-          <p className="hint">Fund the encrypted prize pot (models the yield that funds the draw).</p>
-          <div className="row">
-            <input value={sponsorAmt} onChange={(e) => setSponsorAmt(e.target.value)} inputMode="decimal" />
-            <button className="btn" disabled={disabled} onClick={doSponsor}>
-              Sponsor
-            </button>
-          </div>
-        </section>
-
-        <section className="card wide">
-          <h2>Prize draw</h2>
-          <div className="stats">
-            <div>
-              <span>Round</span>
-              <strong>{info ? info.round.toString() : "—"}</strong>
-            </div>
-            <div>
-              <span>Participants</span>
-              <strong>{info ? info.participants.toString() : "—"}</strong>
-            </div>
-            <div>
-              <span>Last revealed total</span>
-              <strong>{info ? formatUnits(info.total) : "—"}</strong>
-            </div>
-            <div>
-              <span>State</span>
-              <strong>{info ? (info.drawState === 0 ? "Idle" : "Awaiting total") : "—"}</strong>
-            </div>
-          </div>
-          <p className="hint">
-            The draw reveals only the aggregate pool total, draws a deposit-weighted random ticket
-            under FHE, and credits the encrypted prize to one hidden winner.
+          <h1 className="hero-title">
+            The Private<br />
+            <span className="gradient-text">No-Loss Lottery</span>
+          </h1>
+          <p className="hero-subtitle">
+            Deposit, save together, and one depositor wins the prize each round.
+            Your deposits, balances, and winnings stay <strong>fully encrypted</strong> end-to-end with FHE.
           </p>
-          <div className="row">
-            <button className="btn" disabled={disabled || info?.drawState !== 0} onClick={doStartDraw}>
-              1 · Start draw
+          {!account && (
+            <button className="btn btn-primary btn-lg btn-glow hero-cta" onClick={connect}>
+              <span className="btn-icon">🔗</span>
+              Launch App
             </button>
-            <button className="btn primary" disabled={disabled || info?.drawState !== 1} onClick={doFinalizeDraw}>
-              2 · Finalize draw
-            </button>
+          )}
+        </header>
+
+        {/* Stats Bar */}
+        {info && (
+          <div className="stats-bar">
+            <div className="stat-item">
+              <span className="stat-label">Round</span>
+              <span className="stat-value">{info.round.toString()}</span>
+            </div>
+            <div className="stat-divider" />
+            <div className="stat-item">
+              <span className="stat-label">Participants</span>
+              <span className="stat-value">{info.participants.toString()}</span>
+            </div>
+            <div className="stat-divider" />
+            <div className="stat-item">
+              <span className="stat-label">Last Revealed TVL</span>
+              <span className="stat-value">{formatUnits(info.total)} cUSD</span>
+            </div>
+            <div className="stat-divider" />
+            <div className="stat-item">
+              <span className="stat-label">Status</span>
+              <span className={`stat-value ${info.drawState === 0 ? "text-success" : "text-warning"}`}>
+                {info.drawState === 0 ? "● Open" : "⏳ Drawing"}
+              </span>
+            </div>
           </div>
-        </section>
-      </main>
+        )}
 
-      <section className="log">
-        <h2>Activity</h2>
-        <ul>
-          {logs.length === 0 ? (
-            <li className="muted">No activity yet.</li>
-          ) : (
-            logs.map((l, i) => <li key={i}>{l}</li>)
-          )}
-        </ul>
-      </section>
+        {!configured && (
+          <div className="alert alert-warning">
+            <span className="alert-icon">⚠️</span>
+            Frontend not pointed at deployed contracts. Set <code>VITE_TOKEN_ADDRESS</code> and{" "}
+            <code>VITE_POOL_ADDRESS</code>.
+          </div>
+        )}
 
-      <footer className="foot">
-        <p>
-          <strong>Privacy model.</strong> Individual deposits, balances, the prize amount and the
-          winner all stay encrypted. The only value ever decrypted is the aggregate pool total,
-          exposed at draw time so a fair deposit-weighted ticket can be drawn.
-        </p>
-        <p className="addrs">
-          {configured ? (
-            <>
-              token <code>{TOKEN_ADDRESS}</code> · pool <code>{POOL_ADDRESS}</code>
-            </>
-          ) : (
-            "contracts not configured"
-          )}
-        </p>
-      </footer>
-    </div>
+        {/* Main Dashboard */}
+        {account && onSepolia && (
+          <div className="dashboard">
+            {/* Left Column - Your Position */}
+            <div className="dashboard-left">
+              {/* Balance Card */}
+              <div className="card card-highlight card-position">
+                <div className="card-header-row">
+                  <h2 className="card-title">Your Position</h2>
+                  <span className="encrypted-badge">
+                    <span className="lock-icon">🔒</span> Encrypted
+                  </span>
+                </div>
+                <div className="position-grid">
+                  <div className="position-item">
+                    <span className="position-label">Pool Balance</span>
+                    <div className="position-value-row">
+                      <span className="position-value">{poolBalance}</span>
+                      <button className="btn btn-ghost btn-xs" disabled={disabled} onClick={revealPool}>
+                        👁️ Decrypt
+                      </button>
+                    </div>
+                    <span className="position-unit">cUSD in pool</span>
+                  </div>
+                  <div className="position-divider" />
+                  <div className="position-item">
+                    <span className="position-label">Wallet Balance</span>
+                    <div className="position-value-row">
+                      <span className="position-value">{walletBalance}</span>
+                      <button className="btn btn-ghost btn-xs" disabled={disabled} onClick={revealWallet}>
+                        👁️ Decrypt
+                      </button>
+                    </div>
+                    <span className="position-unit">cUSD in wallet</span>
+                  </div>
+                </div>
+                <p className="position-hint">
+                  Only you can decrypt these values. To everyone else they appear as opaque ciphertext.
+                </p>
+              </div>
+
+              {/* Draw Card */}
+              <div className="card card-draw">
+                <div className="card-header-row">
+                  <h2 className="card-title">🎲 Prize Draw</h2>
+                  <span className={`draw-status ${info?.drawState === 0 ? "status-idle" : "status-pending"}`}>
+                    {info?.drawState === 0 ? "Ready" : "Awaiting Finalization"}
+                  </span>
+                </div>
+                <p className="card-description">
+                  Trigger a deposit-weighted random draw. The winner receives the entire prize pot
+                  added to their encrypted balance — with zero on-chain signal of who won.
+                </p>
+                <div className="draw-actions">
+                  <button className="btn btn-secondary" disabled={disabled || info?.drawState !== 0} onClick={doStartDraw}>
+                    Start Draw
+                  </button>
+                  <button className="btn btn-primary" disabled={disabled || info?.drawState === 0} onClick={doFinalizeDraw}>
+                    Finalize Draw
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Actions */}
+            <div className="dashboard-right">
+              {/* Faucet + Approve Card */}
+              <div className="card card-setup">
+                <h2 className="card-title">⚡ Setup</h2>
+                <div className="setup-grid">
+                  <div className="setup-item">
+                    <label className="input-label">Mint test cUSD</label>
+                    <div className="input-row">
+                      <input
+                        className="input"
+                        value={mintAmt}
+                        onChange={(e) => setMintAmt(e.target.value)}
+                        inputMode="decimal"
+                        placeholder="Amount"
+                      />
+                      <button className="btn btn-secondary" disabled={disabled} onClick={doMint}>
+                        Mint
+                      </button>
+                    </div>
+                  </div>
+                  <div className="setup-item">
+                    <label className="input-label">Approve pool operator</label>
+                    <button className="btn btn-outline btn-full" disabled={disabled} onClick={doApprove}>
+                      Approve ERC-7984 Operator
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Tabs Card */}
+              <div className="card card-actions">
+                <div className="tab-header">
+                  <button
+                    className={`tab-btn ${activeTab === "deposit" ? "tab-active" : ""}`}
+                    onClick={() => setActiveTab("deposit")}
+                  >
+                    Deposit
+                  </button>
+                  <button
+                    className={`tab-btn ${activeTab === "withdraw" ? "tab-active" : ""}`}
+                    onClick={() => setActiveTab("withdraw")}
+                  >
+                    Withdraw
+                  </button>
+                  <button
+                    className={`tab-btn ${activeTab === "sponsor" ? "tab-active" : ""}`}
+                    onClick={() => setActiveTab("sponsor")}
+                  >
+                    Sponsor
+                  </button>
+                </div>
+
+                <div className="tab-content">
+                  {activeTab === "deposit" && (
+                    <div className="tab-panel">
+                      <p className="tab-description">
+                        Your deposit is encrypted in-browser before submission. The contract only sees ciphertext.
+                      </p>
+                      <div className="input-row">
+                        <input
+                          className="input input-lg"
+                          value={depositAmt}
+                          onChange={(e) => setDepositAmt(e.target.value)}
+                          inputMode="decimal"
+                          placeholder="Amount in cUSD"
+                        />
+                        <span className="input-suffix">cUSD</span>
+                      </div>
+                      <button className="btn btn-primary btn-full btn-lg" disabled={disabled} onClick={doDeposit}>
+                        🔐 Encrypt & Deposit
+                      </button>
+                      <div className="fee-hint">
+                        <span>🛡️ No-loss guarantee: principal always redeemable</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "withdraw" && (
+                    <div className="tab-panel">
+                      <p className="tab-description">
+                        Withdraw your principal safely. Over-withdrawals are clamped to zero — you can never lose funds.
+                      </p>
+                      <div className="input-row">
+                        <input
+                          className="input input-lg"
+                          value={withdrawAmt}
+                          onChange={(e) => setWithdrawAmt(e.target.value)}
+                          inputMode="decimal"
+                          placeholder="Amount in cUSD"
+                        />
+                        <span className="input-suffix">cUSD</span>
+                      </div>
+                      <button className="btn btn-secondary btn-full btn-lg" disabled={disabled} onClick={doWithdraw}>
+                        Withdraw
+                      </button>
+                    </div>
+                  )}
+
+                  {activeTab === "sponsor" && (
+                    <div className="tab-panel">
+                      <p className="tab-description">
+                        Fund the prize pot. Sponsors provide the yield that funds prizes — modelling real DeFi yield on testnet.
+                      </p>
+                      <div className="input-row">
+                        <input
+                          className="input input-lg"
+                          value={sponsorAmt}
+                          onChange={(e) => setSponsorAmt(e.target.value)}
+                          inputMode="decimal"
+                          placeholder="Amount in cUSD"
+                        />
+                        <span className="input-suffix">cUSD</span>
+                      </div>
+                      <button className="btn btn-accent btn-full btn-lg" disabled={disabled} onClick={doSponsor}>
+                        🎁 Sponsor Prize
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* How It Works */}
+        <HowItWorks />
+
+        {/* Activity Log */}
+        {logs.length > 0 && (
+          <section className="card card-log">
+            <div className="card-header-row">
+              <h2 className="card-title">📋 Activity Log</h2>
+              <button className="btn btn-ghost btn-xs" onClick={() => setLogs([])}>
+                Clear
+              </button>
+            </div>
+            <ul className="log-list">
+              {logs.map((entry, i) => (
+                <li key={i} className="log-entry">
+                  {entry}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Footer */}
+        <footer className="footer">
+          <div className="footer-brand">
+            <span>🔐</span>
+            <span>Confidential Prize Savings</span>
+          </div>
+          <div className="footer-links">
+            <a href={`https://sepolia.etherscan.io/address/${POOL_ADDRESS}`} target="_blank" rel="noreferrer">
+              Pool Contract ↗
+            </a>
+            <a href={`https://sepolia.etherscan.io/address/${TOKEN_ADDRESS}`} target="_blank" rel="noreferrer">
+              Token Contract ↗
+            </a>
+            <a href="https://docs.zama.ai/fhevm" target="_blank" rel="noreferrer">
+              Zama Docs ↗
+            </a>
+          </div>
+          <div className="footer-copy">
+            Built with 🔒 FHE for a more private DeFi · Zama Developer Program Season 4
+          </div>
+        </footer>
+      </div>
+    </>
   );
 }
