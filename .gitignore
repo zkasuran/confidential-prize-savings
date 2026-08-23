@@ -25,3 +25,6 @@ ref-dapps/
 
 # TS build info
 *.tsbuildinfo
+
+# Built site deploy dir (separate public repo)
+site-deploy/

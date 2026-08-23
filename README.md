@@ -9,7 +9,7 @@ Built for the Zama Developer Program (Mainnet Season 4, Bounty Track).
 
 ## Live
 
-- App: _published at submission (Sepolia)_
+- App: **https://zkasuran.github.io/confidential-prize-savings-app/** (connect MetaMask on Sepolia)
 - Network: Ethereum Sepolia (chainId 11155111)
 - ConfidentialToken (cUSD): [`0x57aF4e4B482Ab1bb4f9d1aeb5206258a7Def0eaf`](https://sepolia.etherscan.io/address/0x57aF4e4B482Ab1bb4f9d1aeb5206258a7Def0eaf)
 - ConfidentialPrizePool: [`0x89EE395e44bD7F7401D47805550f9dc424b9D553`](https://sepolia.etherscan.io/address/0x89EE395e44bD7F7401D47805550f9dc424b9D553)
