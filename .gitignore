@@ -32,3 +32,4 @@ site-deploy/
 # Internal prep (not part of the public deliverable)
 SUBMIT-PACKET.md
 content/
+semantic-review/

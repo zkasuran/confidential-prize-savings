@@ -3,6 +3,7 @@
 
 export const CHAIN_ID = 11155111; // Sepolia
 export const CHAIN_ID_HEX = "0xaa36a7";
+export const CHAIN_RPC = import.meta.env.VITE_RPC_URL ?? "https://ethereum-sepolia-rpc.publicnode.com";
 export const DECIMALS = 6;
 
 const DEFAULT_TOKEN = "0x57aF4e4B482Ab1bb4f9d1aeb5206258a7Def0eaf";
@@ -10,6 +11,19 @@ const DEFAULT_POOL = "0x89EE395e44bD7F7401D47805550f9dc424b9D553";
 
 export const TOKEN_ADDRESS = import.meta.env.VITE_TOKEN_ADDRESS ?? DEFAULT_TOKEN;
 export const POOL_ADDRESS = import.meta.env.VITE_POOL_ADDRESS ?? DEFAULT_POOL;
+
+/** Extended ABI for read-only history queries (includes events). */
+export const POOL_ABI_EXTENDED = [
+  "function currentRound() view returns (uint256)",
+  "function lastRevealedTotal() view returns (uint64)",
+  "function participantCount() view returns (uint256)",
+  "function drawState() view returns (uint8)",
+  "event DrawFinalized(uint256 indexed round, uint64 indexed revealedTotal)",
+  "event DrawStarted(uint256 indexed round, bytes32 totalHandle)",
+  "event Deposited(address indexed account)",
+  "event Withdrawn(address indexed account)",
+  "event PrizeSponsored(address indexed sponsor)",
+];
 
 /** Format a base-unit bigint as a human cUSD string. */
 export function formatUnits(amount: bigint): string {
