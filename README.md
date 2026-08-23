@@ -19,7 +19,7 @@ Save together, one depositor wins the prize each round, nobody loses principal �
 
 <br />
 
-[🌐 Live Demo](https://zkasuran.github.io/confidential-prize-savings-app/) · [📄 Contracts on Etherscan](https://sepolia.etherscan.io/address/0x89EE395e44bD7F7401D47805550f9dc424b9D553) · [🎥 Video Demo](#demo)
+[🌐 Live Demo](https://zkasuran.github.io/confidential-prize-savings-app/) · [📄 Contracts on Etherscan](https://sepolia.etherscan.io/address/0x89EE395e44bD7F7401D47805550f9dc424b9D553)
 
 <br />
 

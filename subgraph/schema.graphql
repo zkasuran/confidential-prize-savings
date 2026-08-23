@@ -48,7 +48,7 @@ type DepositEvent @entity(immutable: true) {
   blockNumber: BigInt!
   timestamp: BigInt!
   transactionHash: Bytes!
-  "Amount is encrypted and NOT stored"
+  # Note: Amount is encrypted and NOT stored — privacy preserved
 }
 
 """

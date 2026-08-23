@@ -108,14 +108,14 @@ export function handleDrawFinalized(event: DrawFinalized): void {
   round.blockNumber = event.block.number;
   round.timestamp = event.block.timestamp;
   round.transactionHash = event.transaction.hash;
-  round.revealedTotal = BigInt.fromI64(event.params.revealedTotal);
+  round.revealedTotal = event.params.revealedTotal;
   round.participantCount = BigInt.zero(); // would need to read contract state
   round.winnerHidden = true; // ALWAYS true — privacy preserved
   round.save();
 
   const stats = getOrCreateStats();
   stats.totalRounds = stats.totalRounds.plus(BigInt.fromI32(1));
-  stats.lastRevealedTotal = BigInt.fromI64(event.params.revealedTotal);
+  stats.lastRevealedTotal = event.params.revealedTotal;
   stats.lastDrawTimestamp = event.block.timestamp;
   stats.save();
 }
