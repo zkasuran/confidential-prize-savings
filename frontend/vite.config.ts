@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 // Cross-origin isolation headers let the SDK use threaded WASM where available.
 export default defineConfig({
   plugins: [react()],
+  base: "./",
   optimizeDeps: {
     exclude: ["@zama-fhe/relayer-sdk"],
   },
