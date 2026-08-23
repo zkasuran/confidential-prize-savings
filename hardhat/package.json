@@ -24,6 +24,7 @@
     "hardhat"
   ],
   "dependencies": {
+    "@chainlink/contracts": "^1.3.0",
     "@fhevm/mock-utils": "^0.4.2",
     "@fhevm/solidity": "^0.11.1",
     "@openzeppelin/confidential-contracts": "0.5.3",

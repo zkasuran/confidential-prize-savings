@@ -171,7 +171,9 @@ confidential-prize-savings/
 ├── 📜 hardhat/                          Solidity + Tests + Deployment
 │   ├── contracts/
 │   │   ├── ConfidentialPrizePool.sol     The confidential no-loss prize pool
-│   │   └── ConfidentialToken.sol         ERC-7984 confidential token (cUSD)
+│   │   ├── ConfidentialToken.sol         ERC-7984 confidential token (cUSD)
+│   │   └── automation/
+│   │       └── AutoDraw.sol              Chainlink Automation keeper for draws
 │   ├── test/
 │   │   └── ConfidentialPrizePool.ts      7 tests on FHEVM mock coprocessor
 │   ├── deploy/
@@ -179,12 +181,18 @@ confidential-prize-savings/
 │   └── tasks/
 │       └── PrizePool.ts                  CLI: faucet, deposit, balance, draw
 │
-├── 🌐 frontend/                         Vite + React + TypeScript
+├── 🌐 frontend/                         Vite + React + TypeScript (PWA)
+│   ├── public/
+│   │   └── manifest.json                PWA manifest
 │   └── src/
 │       ├── App.tsx                       Main dApp interface
-│       ├── components/                   UI components
-│       │   ├── HowItWorks.tsx            Visual encryption flow explainer
+│       ├── components/
+│       │   ├── Confetti.tsx              🎉 Win detection celebration
+│       │   ├── FeatureCards.tsx           Feature showcase grid
+│       │   ├── HowItWorks.tsx            Visual encryption flow
 │       │   ├── ParticleBackground.tsx    Animated particle canvas
+│       │   ├── RoundHistory.tsx          Multi-round draw history
+│       │   ├── StatsCounter.tsx          Animated counting numbers
 │       │   └── Toast.tsx                 Notification system
 │       ├── abi.ts                        Contract ABIs
 │       ├── config.ts                     Chain & address config
@@ -192,6 +200,21 @@ confidential-prize-savings/
 │       ├── fhevm.ts                      Zama Relayer SDK singleton
 │       └── styles.css                    Modern glassmorphism theme
 │
+├── 📊 subgraph/                         The Graph (Event Indexer)
+│   ├── schema.graphql                   Entity definitions
+│   ├── subgraph.yaml                    Data source config
+│   └── src/mapping.ts                   Event handlers
+│
+├── 📚 docs/
+│   ├── ARCHITECTURE.md                  System design + threat model
+│   └── DEMO_SCRIPT.md                   Judge walkthrough storyboard
+│
+├── 🔄 .github/
+│   ├── workflows/ci.yml                 CI: tests + build + deploy
+│   └── assets/hero-banner.svg           README banner
+│
+├── CONTRIBUTING.md                      Open-source contribution guide
+├── SECURITY.md                          Security policy + threat model
 └── 📖 README.md                         This file
 ```
 
@@ -212,6 +235,8 @@ confidential-prize-savings/
 | **Blockchain** | ethers 6.16 | Contract interaction |
 | **Encryption SDK** | @zama-fhe/relayer-sdk 0.4 | Browser-side FHE encryption |
 | **Network** | Ethereum Sepolia | Testnet with FHEVM support |
+| **Automation** | Chainlink Automation v2 | Scheduled keeper draws |
+| **Indexing** | The Graph | Event indexing + history queries |
 
 ---
 
@@ -349,6 +374,12 @@ npx hardhat task:balance --network sepolia
 
 5. **Production-Ready Testing** — Full mock-coprocessor test suite validating correctness of encrypted arithmetic, state transitions, and edge cases
 
+6. **Autonomous Operation** — Chainlink Automation keeper enables fully trustless, scheduled draw execution without manual intervention
+
+7. **Privacy-Preserving Indexing** — The Graph subgraph indexes public events while explicitly documenting what remains encrypted — demonstrating that composability and privacy can coexist
+
+8. **Win Detection UX** — Frontend compares previous encrypted balance to current one after user decryption, triggering confetti celebration when a win is detected — all without any on-chain signal
+
 ---
 
 ## 🗺️ Roadmap
@@ -359,7 +390,14 @@ npx hardhat task:balance --network sepolia
 - [x] React frontend with in-browser encryption
 - [x] Live deployment on Sepolia
 - [x] User-side balance decryption (EIP-712)
-- [ ] Chainlink Automation for scheduled draws
+- [x] Chainlink Automation keeper contract (AutoDraw)
+- [x] The Graph subgraph for event indexing
+- [x] CI/CD pipeline (tests + build + deploy)
+- [x] Win detection with confetti celebration 🎉
+- [x] Multi-round history display
+- [x] PWA manifest for mobile installation
+- [x] Architecture documentation + threat model
+- [x] Demo walkthrough script for judges
 - [ ] Multi-token prize pools
 - [ ] Governance for draw parameters
 - [ ] Mainnet deployment (pending FHEVM mainnet)

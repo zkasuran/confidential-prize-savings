@@ -7,6 +7,9 @@ import { POOL_ABI, TOKEN_ABI } from "./abi";
 import { CHAIN_ID, CHAIN_ID_HEX, POOL_ADDRESS, TOKEN_ADDRESS, formatUnits, parseUnits } from "./config";
 import ParticleBackground from "./components/ParticleBackground";
 import HowItWorks from "./components/HowItWorks";
+import FeatureCards from "./components/FeatureCards";
+import Confetti from "./components/Confetti";
+import RoundHistory from "./components/RoundHistory";
 import ToastContainer, { showToast } from "./components/Toast";
 
 type InjectedProvider = Eip1193Provider & {
@@ -28,15 +31,19 @@ export default function App() {
   const [chainId, setChainId] = useState(0);
   const [signer, setSigner] = useState<JsonRpcSigner | null>(null);
   const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState("");
   const [logs, setLogs] = useState<string[]>([]);
   const [poolBalance, setPoolBalance] = useState(HIDDEN);
   const [walletBalance, setWalletBalance] = useState(HIDDEN);
+  const [prevPoolBalance, setPrevPoolBalance] = useState<string | null>(null);
   const [info, setInfo] = useState<PoolInfo | null>(null);
   const [mintAmt, setMintAmt] = useState("100");
   const [depositAmt, setDepositAmt] = useState("50");
   const [withdrawAmt, setWithdrawAmt] = useState("10");
   const [sponsorAmt, setSponsorAmt] = useState("25");
   const [activeTab, setActiveTab] = useState<"deposit" | "withdraw" | "sponsor">("deposit");
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [winAmount, setWinAmount] = useState("");
 
   const configured = Boolean(TOKEN_ADDRESS && POOL_ADDRESS);
   const onSepolia = chainId === CHAIN_ID;
@@ -58,7 +65,7 @@ export default function App() {
     setSigner(s);
     setAccount(await s.getAddress());
     setChainId(Number(net.chainId));
-    showToast("Wallet connected successfully!", "success");
+    showToast("Wallet connected!", "success");
     log(`Connected ${await s.getAddress()} on chain ${net.chainId}`);
   }, [log]);
 
@@ -94,6 +101,7 @@ export default function App() {
   const run = useCallback(
     async (label: string, fn: () => Promise<void>) => {
       setBusy(true);
+      setBusyAction(label);
       showToast(`${label}…`, "loading");
       try {
         log(`${label}…`);
@@ -106,6 +114,7 @@ export default function App() {
         showToast(`${label} failed`, "error");
       } finally {
         setBusy(false);
+        setBusyAction("");
       }
     },
     [log],
@@ -135,6 +144,22 @@ export default function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Win detection: compare previous pool balance to new one after decrypt
+  const checkForWin = (newBalance: string) => {
+    if (prevPoolBalance && prevPoolBalance !== HIDDEN && newBalance !== "0.00") {
+      const prev = parseFloat(prevPoolBalance);
+      const curr = parseFloat(newBalance);
+      if (curr > prev && prev > 0) {
+        const prize = (curr - prev).toFixed(2);
+        setWinAmount(prize);
+        setShowConfetti(true);
+        showToast(`🎉 YOU WON! +${prize} cUSD prize!`, "success");
+        setTimeout(() => setShowConfetti(false), 8000);
+      }
+    }
+    setPrevPoolBalance(newBalance);
+  };
 
   const doMint = () =>
     run("Faucet mint", async () => {
@@ -179,10 +204,13 @@ export default function App() {
       const handle: string = await pool.confidentialBalanceOf(account);
       if (handle === ZeroHash) {
         setPoolBalance("0.00");
+        checkForWin("0.00");
         return;
       }
       const instance = await getFhevmInstance(window.ethereum as Eip1193Provider);
-      setPoolBalance(formatUnits(await userDecryptEuint(instance, signer!, handle, POOL_ADDRESS, account)));
+      const val = formatUnits(await userDecryptEuint(instance, signer!, handle, POOL_ADDRESS, account));
+      setPoolBalance(val);
+      checkForWin(val);
     });
 
   const revealWallet = () =>
@@ -219,8 +247,9 @@ export default function App() {
   return (
     <>
       <ParticleBackground />
+      <Confetti active={showConfetti} />
       <ToastContainer />
-      
+
       <div className="app">
         {/* Navigation */}
         <nav className="navbar">
@@ -266,12 +295,28 @@ export default function App() {
             Your deposits, balances, and winnings stay <strong>fully encrypted</strong> end-to-end with FHE.
           </p>
           {!account && (
-            <button className="btn btn-primary btn-lg btn-glow hero-cta" onClick={connect}>
-              <span className="btn-icon">🔗</span>
-              Launch App
-            </button>
+            <div className="hero-actions">
+              <button className="btn btn-primary btn-lg btn-glow hero-cta" onClick={connect}>
+                <span className="btn-icon">🔗</span>
+                Launch App
+              </button>
+              <a href="#how-it-works" className="btn btn-outline btn-lg">
+                Learn More ↓
+              </a>
+            </div>
           )}
         </header>
+
+        {/* Win Banner */}
+        {showConfetti && winAmount && (
+          <div className="win-banner">
+            <span className="win-icon">🏆</span>
+            <div>
+              <strong>Congratulations! You won the prize draw!</strong>
+              <p>+{winAmount} cUSD has been added to your encrypted balance</p>
+            </div>
+          </div>
+        )}
 
         {/* Stats Bar */}
         {info && (
@@ -294,7 +339,7 @@ export default function App() {
             <div className="stat-item">
               <span className="stat-label">Status</span>
               <span className={`stat-value ${info.drawState === 0 ? "text-success" : "text-warning"}`}>
-                {info.drawState === 0 ? "● Open" : "⏳ Drawing"}
+                {info.drawState === 0 ? "● Deposits Open" : "⏳ Draw In Progress"}
               </span>
             </div>
           </div>
@@ -311,9 +356,9 @@ export default function App() {
         {/* Main Dashboard */}
         {account && onSepolia && (
           <div className="dashboard">
-            {/* Left Column - Your Position */}
+            {/* Left Column */}
             <div className="dashboard-left">
-              {/* Balance Card */}
+              {/* Position Card */}
               <div className="card card-highlight card-position">
                 <div className="card-header-row">
                   <h2 className="card-title">Your Position</h2>
@@ -325,27 +370,40 @@ export default function App() {
                   <div className="position-item">
                     <span className="position-label">Pool Balance</span>
                     <div className="position-value-row">
-                      <span className="position-value">{poolBalance}</span>
-                      <button className="btn btn-ghost btn-xs" disabled={disabled} onClick={revealPool}>
-                        👁️ Decrypt
-                      </button>
+                      <span className={`position-value ${poolBalance !== HIDDEN ? "revealed" : ""}`}>
+                        {poolBalance}
+                      </span>
                     </div>
-                    <span className="position-unit">cUSD in pool</span>
+                    <button className="btn btn-ghost btn-xs decrypt-btn" disabled={disabled} onClick={revealPool}>
+                      {busyAction === "Decrypt pool balance" ? (
+                        <span className="spinner" />
+                      ) : (
+                        "👁️ Decrypt my balance"
+                      )}
+                    </button>
+                    <span className="position-unit">cUSD</span>
                   </div>
                   <div className="position-divider" />
                   <div className="position-item">
                     <span className="position-label">Wallet Balance</span>
                     <div className="position-value-row">
-                      <span className="position-value">{walletBalance}</span>
-                      <button className="btn btn-ghost btn-xs" disabled={disabled} onClick={revealWallet}>
-                        👁️ Decrypt
-                      </button>
+                      <span className={`position-value ${walletBalance !== HIDDEN ? "revealed" : ""}`}>
+                        {walletBalance}
+                      </span>
                     </div>
-                    <span className="position-unit">cUSD in wallet</span>
+                    <button className="btn btn-ghost btn-xs decrypt-btn" disabled={disabled} onClick={revealWallet}>
+                      {busyAction === "Decrypt wallet balance" ? (
+                        <span className="spinner" />
+                      ) : (
+                        "👁️ Decrypt my balance"
+                      )}
+                    </button>
+                    <span className="position-unit">cUSD</span>
                   </div>
                 </div>
                 <p className="position-hint">
-                  Only you can decrypt these values. To everyone else they appear as opaque ciphertext.
+                  <span className="hint-icon">ℹ️</span>
+                  Only you can decrypt these values via EIP-712 signed grant. To everyone else they are opaque ciphertext handles.
                 </p>
               </div>
 
@@ -361,22 +419,52 @@ export default function App() {
                   Trigger a deposit-weighted random draw. The winner receives the entire prize pot
                   added to their encrypted balance — with zero on-chain signal of who won.
                 </p>
+                <div className="draw-steps">
+                  <div className={`draw-step ${info?.drawState === 0 ? "step-active" : "step-done"}`}>
+                    <span className="step-num">1</span>
+                    <span>Start Draw</span>
+                  </div>
+                  <div className="draw-step-arrow">→</div>
+                  <div className={`draw-step ${info?.drawState === 1 ? "step-active" : ""}`}>
+                    <span className="step-num">2</span>
+                    <span>Finalize</span>
+                  </div>
+                  <div className="draw-step-arrow">→</div>
+                  <div className="draw-step">
+                    <span className="step-num">3</span>
+                    <span>Decrypt to check</span>
+                  </div>
+                </div>
                 <div className="draw-actions">
-                  <button className="btn btn-secondary" disabled={disabled || info?.drawState !== 0} onClick={doStartDraw}>
-                    Start Draw
+                  <button
+                    className="btn btn-secondary"
+                    disabled={disabled || info?.drawState !== 0}
+                    onClick={doStartDraw}
+                  >
+                    {busyAction === "Start draw" ? <span className="spinner" /> : "Start Draw"}
                   </button>
-                  <button className="btn btn-primary" disabled={disabled || info?.drawState === 0} onClick={doFinalizeDraw}>
-                    Finalize Draw
+                  <button
+                    className="btn btn-primary"
+                    disabled={disabled || info?.drawState === 0}
+                    onClick={doFinalizeDraw}
+                  >
+                    {busyAction === "Finalize draw" ? <span className="spinner" /> : "Finalize & Award"}
                   </button>
                 </div>
               </div>
+
+              {/* Round History */}
+              <div className="card">
+                <RoundHistory />
+              </div>
             </div>
 
-            {/* Right Column - Actions */}
+            {/* Right Column */}
             <div className="dashboard-right">
-              {/* Faucet + Approve Card */}
+              {/* Setup Card */}
               <div className="card card-setup">
-                <h2 className="card-title">⚡ Setup</h2>
+                <h2 className="card-title">⚡ Quick Setup</h2>
+                <p className="card-description">Mint test tokens and approve the pool to get started.</p>
                 <div className="setup-grid">
                   <div className="setup-item">
                     <label className="input-label">Mint test cUSD</label>
@@ -389,116 +477,166 @@ export default function App() {
                         placeholder="Amount"
                       />
                       <button className="btn btn-secondary" disabled={disabled} onClick={doMint}>
-                        Mint
+                        {busyAction === "Faucet mint" ? <span className="spinner" /> : "Mint"}
                       </button>
                     </div>
                   </div>
                   <div className="setup-item">
-                    <label className="input-label">Approve pool operator</label>
+                    <label className="input-label">Approve pool operator (one-time)</label>
                     <button className="btn btn-outline btn-full" disabled={disabled} onClick={doApprove}>
-                      Approve ERC-7984 Operator
+                      {busyAction === "Approve pool operator" ? <span className="spinner" /> : "Approve ERC-7984 Operator"}
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Action Tabs Card */}
+              {/* Action Tabs */}
               <div className="card card-actions">
                 <div className="tab-header">
                   <button
                     className={`tab-btn ${activeTab === "deposit" ? "tab-active" : ""}`}
                     onClick={() => setActiveTab("deposit")}
                   >
-                    Deposit
+                    <span className="tab-icon">📥</span> Deposit
                   </button>
                   <button
                     className={`tab-btn ${activeTab === "withdraw" ? "tab-active" : ""}`}
                     onClick={() => setActiveTab("withdraw")}
                   >
-                    Withdraw
+                    <span className="tab-icon">📤</span> Withdraw
                   </button>
                   <button
                     className={`tab-btn ${activeTab === "sponsor" ? "tab-active" : ""}`}
                     onClick={() => setActiveTab("sponsor")}
                   >
-                    Sponsor
+                    <span className="tab-icon">🎁</span> Sponsor
                   </button>
                 </div>
 
                 <div className="tab-content">
                   {activeTab === "deposit" && (
                     <div className="tab-panel">
-                      <p className="tab-description">
-                        Your deposit is encrypted in-browser before submission. The contract only sees ciphertext.
-                      </p>
-                      <div className="input-row">
-                        <input
-                          className="input input-lg"
-                          value={depositAmt}
-                          onChange={(e) => setDepositAmt(e.target.value)}
-                          inputMode="decimal"
-                          placeholder="Amount in cUSD"
-                        />
-                        <span className="input-suffix">cUSD</span>
+                      <div className="encryption-notice">
+                        <span className="encryption-icon">🔐</span>
+                        <span>Amount encrypted in-browser before on-chain submission</span>
+                      </div>
+                      <div className="input-group">
+                        <label className="input-label">Deposit Amount</label>
+                        <div className="input-row has-suffix">
+                          <input
+                            className="input input-lg"
+                            value={depositAmt}
+                            onChange={(e) => setDepositAmt(e.target.value)}
+                            inputMode="decimal"
+                            placeholder="0.00"
+                          />
+                          <span className="input-suffix">cUSD</span>
+                        </div>
                       </div>
                       <button className="btn btn-primary btn-full btn-lg" disabled={disabled} onClick={doDeposit}>
-                        🔐 Encrypt & Deposit
+                        {busyAction === "Encrypted deposit" ? (
+                          <span className="spinner" />
+                        ) : (
+                          <>🔐 Encrypt &amp; Deposit</>
+                        )}
                       </button>
                       <div className="fee-hint">
-                        <span>🛡️ No-loss guarantee: principal always redeemable</span>
+                        <span>🛡️ No-loss guarantee — principal always redeemable</span>
                       </div>
                     </div>
                   )}
 
                   {activeTab === "withdraw" && (
                     <div className="tab-panel">
-                      <p className="tab-description">
-                        Withdraw your principal safely. Over-withdrawals are clamped to zero — you can never lose funds.
-                      </p>
-                      <div className="input-row">
-                        <input
-                          className="input input-lg"
-                          value={withdrawAmt}
-                          onChange={(e) => setWithdrawAmt(e.target.value)}
-                          inputMode="decimal"
-                          placeholder="Amount in cUSD"
-                        />
-                        <span className="input-suffix">cUSD</span>
+                      <div className="encryption-notice">
+                        <span className="encryption-icon">🛡️</span>
+                        <span>Over-withdrawals clamped to zero — cannot lose funds</span>
+                      </div>
+                      <div className="input-group">
+                        <label className="input-label">Withdraw Amount</label>
+                        <div className="input-row has-suffix">
+                          <input
+                            className="input input-lg"
+                            value={withdrawAmt}
+                            onChange={(e) => setWithdrawAmt(e.target.value)}
+                            inputMode="decimal"
+                            placeholder="0.00"
+                          />
+                          <span className="input-suffix">cUSD</span>
+                        </div>
                       </div>
                       <button className="btn btn-secondary btn-full btn-lg" disabled={disabled} onClick={doWithdraw}>
-                        Withdraw
+                        {busyAction === "Encrypted withdrawal" ? <span className="spinner" /> : "Withdraw"}
                       </button>
                     </div>
                   )}
 
                   {activeTab === "sponsor" && (
                     <div className="tab-panel">
-                      <p className="tab-description">
-                        Fund the prize pot. Sponsors provide the yield that funds prizes — modelling real DeFi yield on testnet.
-                      </p>
-                      <div className="input-row">
-                        <input
-                          className="input input-lg"
-                          value={sponsorAmt}
-                          onChange={(e) => setSponsorAmt(e.target.value)}
-                          inputMode="decimal"
-                          placeholder="Amount in cUSD"
-                        />
-                        <span className="input-suffix">cUSD</span>
+                      <div className="encryption-notice">
+                        <span className="encryption-icon">🎁</span>
+                        <span>Fund the prize pot — models DeFi yield on testnet</span>
+                      </div>
+                      <div className="input-group">
+                        <label className="input-label">Sponsor Amount</label>
+                        <div className="input-row has-suffix">
+                          <input
+                            className="input input-lg"
+                            value={sponsorAmt}
+                            onChange={(e) => setSponsorAmt(e.target.value)}
+                            inputMode="decimal"
+                            placeholder="0.00"
+                          />
+                          <span className="input-suffix">cUSD</span>
+                        </div>
                       </div>
                       <button className="btn btn-accent btn-full btn-lg" disabled={disabled} onClick={doSponsor}>
-                        🎁 Sponsor Prize
+                        {busyAction === "Sponsor prize" ? <span className="spinner" /> : "🎁 Sponsor Prize"}
                       </button>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Contract Addresses */}
+              <div className="card card-contracts">
+                <h2 className="card-title">📜 Contracts</h2>
+                <div className="contract-list">
+                  <div className="contract-item">
+                    <span className="contract-label">Pool</span>
+                    <a
+                      href={`https://sepolia.etherscan.io/address/${POOL_ADDRESS}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="contract-address"
+                    >
+                      {POOL_ADDRESS.slice(0, 8)}…{POOL_ADDRESS.slice(-6)} ↗
+                    </a>
+                  </div>
+                  <div className="contract-item">
+                    <span className="contract-label">Token</span>
+                    <a
+                      href={`https://sepolia.etherscan.io/address/${TOKEN_ADDRESS}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="contract-address"
+                    >
+                      {TOKEN_ADDRESS.slice(0, 8)}…{TOKEN_ADDRESS.slice(-6)} ↗
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         )}
 
+        {/* Feature Cards */}
+        <FeatureCards />
+
         {/* How It Works */}
-        <HowItWorks />
+        <div id="how-it-works">
+          <HowItWorks />
+        </div>
 
         {/* Activity Log */}
         {logs.length > 0 && (
@@ -533,11 +671,15 @@ export default function App() {
               Token Contract ↗
             </a>
             <a href="https://docs.zama.ai/fhevm" target="_blank" rel="noreferrer">
-              Zama Docs ↗
+              Zama FHEVM Docs ↗
+            </a>
+            <a href="https://github.com/zkasuran/confidential-prize-savings" target="_blank" rel="noreferrer">
+              GitHub ↗
             </a>
           </div>
           <div className="footer-copy">
-            Built with 🔒 FHE for a more private DeFi · Zama Developer Program Season 4
+            Built with 🔒 Fully Homomorphic Encryption for a more private DeFi<br />
+            Zama Developer Program · Mainnet Season 4 · Bounty Track
           </div>
         </footer>
       </div>

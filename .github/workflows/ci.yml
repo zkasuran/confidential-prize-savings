@@ -1,0 +1,82 @@
+name: CI — Tests & Build
+
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: 🔒 Smart Contract Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hardhat
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: hardhat/package-lock.json
+      - run: npm ci
+      - name: Run Hardhat tests (FHEVM mock)
+        run: npx hardhat test
+      - name: Solhint lint
+        run: npx solhint 'contracts/**/*.sol'
+      - name: TypeScript typecheck
+        run: npx tsc --noEmit
+      - name: Prettier check
+        run: npx prettier --check 'contracts/**/*.sol' 'test/**/*.ts'
+
+  frontend:
+    name: 🌐 Frontend Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: TypeScript typecheck
+        run: npm run typecheck
+      - name: Production build
+        run: npm run build
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+  deploy:
+    name: 🚀 Deploy to GitHub Pages
+    needs: [contracts, frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist
+      - uses: actions/configure-pages@v4
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

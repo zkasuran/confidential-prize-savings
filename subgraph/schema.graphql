@@ -1,0 +1,94 @@
+# Confidential Prize Savings — Subgraph Schema
+# Indexes on-chain events while preserving the privacy model.
+# Individual amounts are NOT indexed (encrypted), only public metadata.
+
+"""
+A participant in the prize pool. We track public state only —
+encrypted balances are never indexed.
+"""
+type Participant @entity {
+  "Address of the participant"
+  id: Bytes! # address
+  "Timestamp of first deposit"
+  joinedAt: BigInt!
+  "Number of deposits made (public count, not amounts)"
+  depositCount: BigInt!
+  "Number of withdrawals made"
+  withdrawCount: BigInt!
+  "Whether currently active in the pool"
+  isActive: Boolean!
+}
+
+"""
+A completed prize draw round. Public metadata only.
+"""
+type DrawRound @entity {
+  "Round number"
+  id: ID! # round number as string
+  "Block number when draw was finalized"
+  blockNumber: BigInt!
+  "Timestamp when draw was finalized"
+  timestamp: BigInt!
+  "Transaction hash of finalizeDraw"
+  transactionHash: Bytes!
+  "Revealed aggregate pool total at draw time"
+  revealedTotal: BigInt!
+  "Number of participants at draw time"
+  participantCount: BigInt!
+  "Winner is NEVER indexed — privacy preserved"
+  winnerHidden: Boolean! # always true
+}
+
+"""
+A deposit event (public metadata only — amounts are encrypted)
+"""
+type DepositEvent @entity(immutable: true) {
+  id: Bytes! # tx hash + log index
+  account: Bytes! # address
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: Bytes!
+  "Amount is encrypted and NOT stored"
+}
+
+"""
+A withdrawal event (public metadata only)
+"""
+type WithdrawalEvent @entity(immutable: true) {
+  id: Bytes! # tx hash + log index
+  account: Bytes! # address
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+"""
+A prize sponsorship event
+"""
+type SponsorEvent @entity(immutable: true) {
+  id: Bytes! # tx hash + log index
+  sponsor: Bytes! # address
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+"""
+Global pool statistics (singleton entity)
+"""
+type PoolStats @entity {
+  "Always '1' — singleton"
+  id: ID!
+  "Total completed draw rounds"
+  totalRounds: BigInt!
+  "Current participant count"
+  currentParticipants: BigInt!
+  "Total number of deposits ever made"
+  totalDeposits: BigInt!
+  "Total number of withdrawals ever made"
+  totalWithdrawals: BigInt!
+  "Last revealed TVL"
+  lastRevealedTotal: BigInt!
+  "Last draw timestamp"
+  lastDrawTimestamp: BigInt!
+}
