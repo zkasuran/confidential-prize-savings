@@ -1,0 +1,27 @@
+# Build workspace artifacts
+node_modules/
+dist/
+coverage/
+coverage.json
+
+# Hardhat
+hardhat/artifacts/
+hardhat/cache/
+hardhat/fhevmTemp/
+hardhat/types/
+
+# Secrets / env (addresses are public and live in source; keys never are)
+.env
+.env.*
+!.env.example
+
+# Local-only notes and the large reference clone (not part of the deliverable)
+LEDGER.md
+ref-dapps/
+
+# Editor / OS
+.DS_Store
+*.log
+
+# TS build info
+*.tsbuildinfo
