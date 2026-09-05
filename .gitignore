@@ -33,3 +33,13 @@ site-deploy/
 SUBMIT-PACKET.md
 content/
 semantic-review/
+
+# Internal working material and video build outputs. This repository is public,
+# and none of this is part of the deliverable.
+RECORD-VIDEO.md
+submit/
+upload/
+DEMO-*.mp4
+deck-shots/
+frames/
+cues/

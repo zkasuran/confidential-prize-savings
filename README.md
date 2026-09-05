@@ -411,6 +411,15 @@ npx hardhat task:balance --network sepolia
 
 ---
 
+## 🧩 Third-party notice
+
+`frontend/public/coi-serviceworker.js` is
+[coi-serviceworker](https://github.com/gzuidhof/coi-serviceworker) v0.1.7 by Guido Zuidhof and
+contributors, MIT licensed, included verbatim with its licence header intact. It registers a service
+worker that re-serves the page with `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy`
+set, which is how the Relayer SDK's WebAssembly obtains `SharedArrayBuffer` on a static host that
+cannot set response headers.
+
 ## 📜 License
 
 [BSD-3-Clause-Clear](./LICENSE) — matching the FHEVM ecosystem license.
